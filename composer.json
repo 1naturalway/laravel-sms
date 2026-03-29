@@ -11,15 +11,19 @@
       }
     ],
     "require": {
-        "php": "^8.4",
+        "php": "^8.4 || ^8.5",
         "illuminate/support": "^12.0 || ^13.0",
         "illuminate/contracts": "^12.0 || ^13.0",
         "illuminate/http": "^12.0 || ^13.0",
         "illuminate/log": "^12.0 || ^13.0"
     },
     "require-dev": {
+        "larastan/larastan": "^3.9",
+        "mockery/mockery": "^1.4.4",
         "orchestra/testbench": "^10.0",
+        "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^11.0",
+        "squizlabs/php_codesniffer": "^4.0",
         "twilio/sdk": "^8.11"
     },
     "suggest": {

@@ -44,12 +44,6 @@ return [
             'from'  => env('TWILIO_FROM'),
         ],
 
-        'smstrap' => [
-            'url'     => env('SMSTRAP_URL'),
-            'api_key' => env('SMSTRAP_API_KEY'),
-            'project' => env('SMSTRAP_PROJECT'),
-        ],
-
         'log' => [
             'channel' => env('SMS_LOG_CHANNEL', 'stack'),
         ],

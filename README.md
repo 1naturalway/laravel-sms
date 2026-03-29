@@ -19,7 +19,7 @@ php artisan vendor:publish --tag=sms-config
 Set the driver and credentials in your `.env` file:
 
 ```dotenv
-# Choose your driver: twilio, smstrap, log, null
+# Choose your driver: twilio, log, null
 SMS_DRIVER=null
 
 # Default "from" number (used by drivers that don't define their own)
@@ -40,17 +40,6 @@ Requires the Twilio SDK:
 ```bash
 composer require twilio/sdk
 ```
-
-### SmsTrap (UAT / Testing)
-
-```dotenv
-SMS_DRIVER=smstrap
-SMSTRAP_URL=https://your-smstrap-instance.com
-SMSTRAP_API_KEY=your-api-key
-SMSTRAP_PROJECT=your-project-name
-```
-
-SmsTrap sends all messages to your internal trap service via HTTP POST, authenticated with a Bearer token. Use this in UAT environments to verify SMS sends without hitting real carrier networks.
 
 ### Log
 
@@ -266,15 +255,14 @@ class VonageSmsProvider implements SmsProvider
 
 ## UAT Strategy
 
-For UAT environments, we recommend combining the **SmsTrap** and **Log** drivers:
+For UAT environments, we recommend **Log** driver:
 
-- **SmsTrap** sends all messages to an internal HTTP service where QA can inspect them without hitting real phone numbers. Set `SMS_DRIVER=smstrap` in your UAT `.env`.
 - **Log** writes messages to your Laravel log files for easy inspection. Use `SMS_DRIVER=log` when you need to verify sends in CI or staging.
 - **Null** (the default) ensures no SMS is sent in development or CI unless explicitly configured.
 
 This layered approach guarantees:
 1. Production uses Twilio (or your chosen carrier) via `SMS_DRIVER=twilio`
-2. UAT uses SmsTrap to capture and inspect messages
+2. UAT uses logs to capture and inspect messages
 3. Development and CI use `null` or `log` — zero accidental sends
 
 ## License

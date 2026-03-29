@@ -24,13 +24,13 @@ class TwilioSmsProvider implements SmsProvider {
     }
   }
 
-    /**
-     * Send an SMS via the Twilio API.
-     *
-     * @param  string  $to  The recipient phone number.
-     * @param  string  $body  The message body.
-     * @param  array<string, mixed>  $options  Optional parameters (e.g., 'from', 'mediaUrl').
-     */
+  /**
+   * Send an SMS via the Twilio API.
+   *
+   * @param  string  $to  The recipient phone number.
+   * @param  string  $body  The message body.
+   * @param  array<string, mixed>  $options  Optional parameters (e.g., 'from', 'mediaUrl').
+   */
   public function send(string $to, string $body, array $options = []): SmsResult {
     $client = $this->createClient();
 
@@ -49,10 +49,12 @@ class TwilioSmsProvider implements SmsProvider {
       $message = $client->messages->create($to, $params);
 
       $mediaUrls = [];
-      if ((int) $message->numMedia > 0) {
-        $mediaResponse = $client->messages($message->sid)->media->read();
+      if ((int) $message->numMedia > 0 && $message->sid !== null) {
+        $mediaResponse = $client->Messages($message->sid)->media->read();
         foreach ($mediaResponse as $media) {
-          $mediaUrls[] = "https://api.twilio.com" . Str::replaceLast(".json", "", $media->uri);
+          if ($media->uri !== null) {
+            $mediaUrls[] = "https://api.twilio.com" . Str::replaceLast(".json", "", $media->uri);
+          }
         }
       }
     } catch (\Twilio\Exceptions\RestException $e) {

@@ -6,8 +6,7 @@ namespace OneNaturalWay\Sms\Contracts;
 
 use OneNaturalWay\Sms\SmsResult;
 
-interface SmsProvider
-{
+interface SmsProvider {
     /**
      * Send an SMS message.
      *
@@ -15,5 +14,5 @@ interface SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters (e.g., 'from', 'mediaUrl').
      */
-    public function send(string $to, string $body, array $options = []): SmsResult;
+  public function send(string $to, string $body, array $options = []): SmsResult;
 }

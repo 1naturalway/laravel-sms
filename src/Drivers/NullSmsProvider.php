@@ -7,8 +7,7 @@ namespace OneNaturalWay\Sms\Drivers;
 use OneNaturalWay\Sms\Contracts\SmsProvider;
 use OneNaturalWay\Sms\SmsResult;
 
-class NullSmsProvider implements SmsProvider
-{
+class NullSmsProvider implements SmsProvider {
     /**
      * Discard the SMS silently.
      *
@@ -16,8 +15,7 @@ class NullSmsProvider implements SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters.
      */
-    public function send(string $to, string $body, array $options = []): SmsResult
-    {
-        return new SmsResult();
-    }
+  public function send(string $to, string $body, array $options = []): SmsResult {
+    return new SmsResult();
+  }
 }

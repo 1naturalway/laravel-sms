@@ -6,6 +6,7 @@ namespace OneNaturalWay\Sms;
 
 class SmsResult {
   /**
+   * @param  array<string>  $mediaUrls  List of media URLs.
    * @param  array<string, mixed>  $raw  The raw response data from the provider.
    */
   public function __construct(

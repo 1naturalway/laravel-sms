@@ -1,0 +1,15 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    tmpDir: tmp
+    paths:
+      - src
+      - config
+
+    # Level 9 is the highest level
+    level: 8
+
+    ignoreErrors:
+        - identifier: larastan.noEnvCallsOutsideOfConfig
+        - identifier: offsetAccess.nonOffsetAccessible
