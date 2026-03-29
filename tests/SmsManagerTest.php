@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OneNaturalWay\Sms\Tests;
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -186,35 +185,31 @@ class SmsManagerTest extends TestCase
 
         $driver = new LogSmsProvider(
             channel: 'stack',
-            table: 'sms_log',
-            database: false,
             from: '+15550000000',
         );
 
         $driver->send('+15551234567', 'Log test');
     }
 
-    public function test_log_driver_inserts_database_record(): void
+    public function test_log_driver_respects_from_override(): void
     {
-        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        Log::shouldReceive('channel')
+            ->with('stack')
+            ->once()
+            ->andReturnSelf();
 
-        Log::shouldReceive('channel')->andReturnSelf();
-        Log::shouldReceive('info');
+        Log::shouldReceive('info')
+            ->with('SMS sent', \Mockery::on(function ($context) {
+                return $context['from'] === '+15559999999';
+            }))
+            ->once();
 
         $driver = new LogSmsProvider(
             channel: 'stack',
-            table: 'sms_log',
-            database: true,
             from: '+15550000000',
         );
 
-        $driver->send('+15551234567', 'DB test', ['from' => '+15559999999']);
-
-        $this->assertDatabaseHas('sms_log', [
-            'to'   => '+15551234567',
-            'from' => '+15559999999',
-            'body' => 'DB test',
-        ]);
+        $driver->send('+15551234567', 'Override test', ['from' => '+15559999999']);
     }
 
     // -------------------------------------------------------

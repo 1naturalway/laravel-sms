@@ -23,7 +23,7 @@ class SmsServiceProvider extends ServiceProvider
     }
 
     /**
-     * Boot the package: publish config and migrations.
+     * Boot the package: publish config.
      */
     public function boot(): void
     {
@@ -31,10 +31,6 @@ class SmsServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__ . '/../config/sms.php' => config_path('sms.php'),
             ], 'sms-config');
-
-            $this->publishes([
-                __DIR__ . '/../database/migrations/' => database_path('migrations'),
-            ], 'sms-migrations');
         }
     }
 }

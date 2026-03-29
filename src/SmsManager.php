@@ -121,8 +121,6 @@ class SmsManager implements SmsProvider
     {
         return new LogSmsProvider(
             channel: $config['channel'] ?? 'stack',
-            table: $config['table'] ?? 'sms_log',
-            database: $config['database'] ?? true,
             from: $this->app['config']['sms.from'] ?? '',
         );
     }

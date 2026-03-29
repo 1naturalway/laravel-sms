@@ -14,13 +14,6 @@ Publish the config file:
 php artisan vendor:publish --tag=sms-config
 ```
 
-If you plan to use the `log` driver with database logging, publish and run the migration:
-
-```bash
-php artisan vendor:publish --tag=sms-migrations
-php artisan migrate
-```
-
 ## Configuration
 
 Set the driver and credentials in your `.env` file:
@@ -64,10 +57,9 @@ SmsTrap sends all messages to your internal trap service via HTTP POST, authenti
 ```dotenv
 SMS_DRIVER=log
 SMS_LOG_CHANNEL=stack
-SMS_LOG_TABLE=sms_log
 ```
 
-Writes every message to a Laravel log channel and (optionally) inserts a record into the database. Useful for debugging and audit trails. Set `database` to `false` in `config/sms.php` to skip database logging.
+Writes every SMS to a Laravel log channel. Useful for debugging and verifying sends in staging or CI.
 
 ### Null
 
@@ -222,7 +214,7 @@ class VonageSmsProvider implements SmsProvider
 For UAT environments, we recommend combining the **SmsTrap** and **Log** drivers:
 
 - **SmsTrap** sends all messages to an internal HTTP service where QA can inspect them without hitting real phone numbers. Set `SMS_DRIVER=smstrap` in your UAT `.env`.
-- **Log** writes messages to your Laravel logs and database for a persistent audit trail. Use `SMS_DRIVER=log` when you need to verify sends in CI or staging.
+- **Log** writes messages to your Laravel log files for easy inspection. Use `SMS_DRIVER=log` when you need to verify sends in CI or staging.
 - **Null** (the default) ensures no SMS is sent in development or CI unless explicitly configured.
 
 This layered approach guarantees:

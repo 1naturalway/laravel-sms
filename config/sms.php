@@ -51,9 +51,7 @@ return [
         ],
 
         'log' => [
-            'channel'  => env('SMS_LOG_CHANNEL', 'stack'),
-            'table'    => env('SMS_LOG_TABLE', 'sms_log'),
-            'database' => true,
+            'channel' => env('SMS_LOG_CHANNEL', 'stack'),
         ],
 
         'null' => [],
