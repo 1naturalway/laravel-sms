@@ -6,6 +6,7 @@ namespace OneNaturalWay\Sms\Drivers;
 
 use Illuminate\Support\Facades\Http;
 use OneNaturalWay\Sms\Contracts\SmsProvider;
+use OneNaturalWay\Sms\SmsResult;
 
 class SmsTrapProvider implements SmsProvider
 {
@@ -23,15 +24,28 @@ class SmsTrapProvider implements SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters (e.g., 'from').
      */
-    public function send(string $to, string $body, array $options = []): void
+    public function send(string $to, string $body, array $options = []): SmsResult
     {
-        Http::withToken($this->apiKey)
+        $from = $options['from'] ?? $this->from;
+
+        $response = Http::withToken($this->apiKey)
             ->post(rtrim($this->url, '/') . '/messages', [
                 'to'      => $to,
-                'from'    => $options['from'] ?? $this->from,
+                'from'    => $from,
                 'body'    => $body,
                 'project' => $this->project,
                 'sent_at' => now()->toIso8601String(),
             ]);
+
+        $json = $response->json() ?? [];
+
+        return new SmsResult(
+            messageId: $json['id'] ?? 'smstrap_' . uniqid(),
+            status: 'captured',
+            to: $to,
+            from: $from,
+            body: $body,
+            raw: $json,
+        );
     }
 }

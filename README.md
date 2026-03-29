@@ -76,13 +76,32 @@ Silently discards all messages. This is the default — no accidental sends in d
 ```php
 use OneNaturalWay\Sms\Facades\Sms;
 
-Sms::send('+15559876543', 'Your verification code is 123456');
+$result = Sms::send('+15559876543', 'Your verification code is 123456');
+
+if ($result->successful()) {
+    // Store $result->messageId for tracking
+    // Check $result->status
+}
 ```
+
+Every `send()` call returns an `SmsResult` DTO with these properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `messageId` | `?string` | Provider message ID (e.g., Twilio SID) |
+| `status` | `?string` | Provider status (e.g., `queued`, `captured`, `logged`) |
+| `to` | `?string` | Recipient number |
+| `from` | `?string` | Sender number |
+| `body` | `?string` | Message body |
+| `mediaCount` | `?int` | Number of media attachments (Twilio) |
+| `raw` | `array` | Full raw response from the provider |
+
+Use `$result->successful()` to check if the message was accepted — returns `true` when `messageId` is present. The null driver always returns an unsuccessful result since nothing was sent.
 
 ### With Options
 
 ```php
-Sms::send('+15559876543', 'Hello!', [
+$result = Sms::send('+15559876543', 'Hello!', [
     'from'     => '+15550001111',  // Override the default "from" number
     'mediaUrl' => 'https://example.com/image.jpg',  // Twilio MMS
 ]);
@@ -92,10 +111,10 @@ Sms::send('+15559876543', 'Hello!', [
 
 ```php
 // Use a specific driver for this call
-Sms::driver('log')->send('+15559876543', 'This goes to the log');
+$result = Sms::driver('log')->send('+15559876543', 'This goes to the log');
 
 // Use the default driver
-Sms::send('+15559876543', 'This uses the configured default');
+$result = Sms::send('+15559876543', 'This uses the configured default');
 ```
 
 ### Dependency Injection
@@ -111,7 +130,11 @@ class NotificationService
 
     public function sendWelcome(string $phone): void
     {
-        $this->sms->send($phone, 'Welcome to our service!');
+        $result = $this->sms->send($phone, 'Welcome to our service!');
+
+        if ($result->successful()) {
+            logger()->info('Welcome SMS queued', ['sid' => $result->messageId]);
+        }
     }
 }
 ```
@@ -149,8 +172,8 @@ public function test_sms_body_matches_pattern(): void
 
     // ... trigger your code ...
 
-    $fake->assertSentToWithBody('+15559876543', function (string $body) {
-        return preg_match('/\d{6}/', $body) === 1;
+    $fake->assertSentToWithBody('+15559876543', function (SmsResult $result) {
+        return preg_match('/\d{6}/', $result->body) === 1;
     });
 }
 ```
@@ -162,8 +185,8 @@ public function test_sms_body_matches_pattern(): void
 | `assertSentTo($number, $bodyContains?)` | A message was sent to this number, optionally containing text |
 | `assertNothingSent()` | No messages were sent |
 | `assertSentCount($n)` | Exactly N messages were sent |
-| `assertSentToWithBody($number, $callback)` | A message to this number passes the callback |
-| `getSent()` | Returns the raw array of all captured messages |
+| `assertSentToWithBody($number, $callback)` | A message to this number passes the callback (receives `SmsResult`) |
+| `getSent()` | Returns an array of `SmsResult` objects |
 
 ## Custom Drivers
 
@@ -200,11 +223,13 @@ Your custom provider must implement the `SmsProvider` interface:
 ```php
 use OneNaturalWay\Sms\Contracts\SmsProvider;
 
+use OneNaturalWay\Sms\SmsResult;
+
 class VonageSmsProvider implements SmsProvider
 {
-    public function send(string $to, string $body, array $options = []): void
+    public function send(string $to, string $body, array $options = []): SmsResult
     {
-        // Your implementation here
+        // Your implementation — return an SmsResult with the provider's response data
     }
 }
 ```

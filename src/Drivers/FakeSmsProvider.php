@@ -6,6 +6,7 @@ namespace OneNaturalWay\Sms\Drivers;
 
 use Closure;
 use OneNaturalWay\Sms\Contracts\SmsProvider;
+use OneNaturalWay\Sms\SmsResult;
 use PHPUnit\Framework\Assert;
 
 class FakeSmsProvider implements SmsProvider
@@ -13,7 +14,7 @@ class FakeSmsProvider implements SmsProvider
     /**
      * All captured messages.
      *
-     * @var list<array{to: string, body: string, options: array<string, mixed>}>
+     * @var list<SmsResult>
      */
     protected array $sent = [];
 
@@ -24,13 +25,19 @@ class FakeSmsProvider implements SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters.
      */
-    public function send(string $to, string $body, array $options = []): void
+    public function send(string $to, string $body, array $options = []): SmsResult
     {
-        $this->sent[] = [
-            'to'      => $to,
-            'body'    => $body,
-            'options' => $options,
-        ];
+        $result = new SmsResult(
+            messageId: 'fake_' . uniqid(),
+            status: 'sent',
+            to: $to,
+            from: $options['from'] ?? null,
+            body: $body,
+        );
+
+        $this->sent[] = $result;
+
+        return $result;
     }
 
     /**
@@ -38,12 +45,12 @@ class FakeSmsProvider implements SmsProvider
      */
     public function assertSentTo(string $number, ?string $bodyContains = null): void
     {
-        $found = array_filter($this->sent, function (array $message) use ($number, $bodyContains) {
-            if ($message['to'] !== $number) {
+        $found = array_filter($this->sent, function (SmsResult $result) use ($number, $bodyContains) {
+            if ($result->to !== $number) {
                 return false;
             }
 
-            if ($bodyContains !== null && ! str_contains($message['body'], $bodyContains)) {
+            if ($bodyContains !== null && ! str_contains((string) $result->body, $bodyContains)) {
                 return false;
             }
 
@@ -75,15 +82,15 @@ class FakeSmsProvider implements SmsProvider
     }
 
     /**
-     * Assert that a message was sent to the given number with a body matching the callback.
+     * Assert that a message was sent to the given number matching the callback.
      *
      * @param  string  $number  The recipient phone number.
-     * @param  Closure(string): bool  $callback  Receives the body string, returns true if it matches.
+     * @param  Closure(SmsResult): bool  $callback  Receives the SmsResult, returns true if it matches.
      */
     public function assertSentToWithBody(string $number, Closure $callback): void
     {
-        $found = array_filter($this->sent, function (array $message) use ($number, $callback) {
-            return $message['to'] === $number && $callback($message['body']);
+        $found = array_filter($this->sent, function (SmsResult $result) use ($number, $callback) {
+            return $result->to === $number && $callback($result);
         });
 
         Assert::assertNotEmpty(
@@ -95,7 +102,7 @@ class FakeSmsProvider implements SmsProvider
     /**
      * Get all captured messages.
      *
-     * @return list<array{to: string, body: string, options: array<string, mixed>}>
+     * @return list<SmsResult>
      */
     public function getSent(): array
     {

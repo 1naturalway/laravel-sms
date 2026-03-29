@@ -14,6 +14,7 @@ use OneNaturalWay\Sms\Drivers\NullSmsProvider;
 use OneNaturalWay\Sms\Drivers\SmsTrapProvider;
 use OneNaturalWay\Sms\Facades\Sms;
 use OneNaturalWay\Sms\SmsManager;
+use OneNaturalWay\Sms\SmsResult;
 use OneNaturalWay\Sms\SmsServiceProvider;
 use Orchestra\Testbench\TestCase;
 
@@ -30,6 +31,58 @@ class SmsManagerTest extends TestCase
     }
 
     // -------------------------------------------------------
+    // SmsResult DTO
+    // -------------------------------------------------------
+
+    public function test_sms_result_with_all_parameters(): void
+    {
+        $result = new SmsResult(
+            messageId: 'msg_123',
+            status: 'queued',
+            to: '+15551234567',
+            from: '+15550001111',
+            body: 'Hello',
+            mediaCount: 1,
+            raw: ['sid' => 'msg_123'],
+        );
+
+        $this->assertSame('msg_123', $result->messageId);
+        $this->assertSame('queued', $result->status);
+        $this->assertSame('+15551234567', $result->to);
+        $this->assertSame('+15550001111', $result->from);
+        $this->assertSame('Hello', $result->body);
+        $this->assertSame(1, $result->mediaCount);
+        $this->assertSame(['sid' => 'msg_123'], $result->raw);
+    }
+
+    public function test_sms_result_with_defaults(): void
+    {
+        $result = new SmsResult();
+
+        $this->assertNull($result->messageId);
+        $this->assertNull($result->status);
+        $this->assertNull($result->to);
+        $this->assertNull($result->from);
+        $this->assertNull($result->body);
+        $this->assertNull($result->mediaCount);
+        $this->assertSame([], $result->raw);
+    }
+
+    public function test_sms_result_successful_with_message_id(): void
+    {
+        $result = new SmsResult(messageId: 'msg_123');
+
+        $this->assertTrue($result->successful());
+    }
+
+    public function test_sms_result_not_successful_without_message_id(): void
+    {
+        $result = new SmsResult();
+
+        $this->assertFalse($result->successful());
+    }
+
+    // -------------------------------------------------------
     // Default Driver Resolution
     // -------------------------------------------------------
 
@@ -40,14 +93,15 @@ class SmsManagerTest extends TestCase
         $this->assertInstanceOf(NullSmsProvider::class, $driver);
     }
 
-    public function test_null_driver_does_nothing(): void
+    public function test_null_driver_returns_unsuccessful_result(): void
     {
         $driver = new NullSmsProvider();
 
-        // Should not throw
-        $driver->send('+15551234567', 'Hello');
+        $result = $driver->send('+15551234567', 'Hello');
 
-        $this->assertTrue(true);
+        $this->assertInstanceOf(SmsResult::class, $result);
+        $this->assertFalse($result->successful());
+        $this->assertNull($result->messageId);
     }
 
     // -------------------------------------------------------
@@ -113,9 +167,11 @@ class SmsManagerTest extends TestCase
         $customProvider = new class implements SmsProvider {
             public bool $sent = false;
 
-            public function send(string $to, string $body, array $options = []): void
+            public function send(string $to, string $body, array $options = []): SmsResult
             {
                 $this->sent = true;
+
+                return new SmsResult(messageId: 'custom_1', status: 'sent', to: $to, body: $body);
             }
         };
 
@@ -126,20 +182,22 @@ class SmsManagerTest extends TestCase
         });
 
         $resolved = $manager->driver('custom');
-        $resolved->send('+15551234567', 'test');
+        $result = $resolved->send('+15551234567', 'test');
 
         $this->assertSame($customProvider, $resolved);
         $this->assertTrue($customProvider->sent);
+        $this->assertInstanceOf(SmsResult::class, $result);
+        $this->assertTrue($result->successful());
     }
 
     // -------------------------------------------------------
     // SmsTrap Driver
     // -------------------------------------------------------
 
-    public function test_smstrap_sends_http_post(): void
+    public function test_smstrap_sends_http_post_and_returns_result(): void
     {
         Http::fake([
-            'trap.test/*' => Http::response([], 200),
+            'trap.test/*' => Http::response(['id' => 'trap_abc123'], 200),
         ]);
 
         $this->app['config']->set('sms.drivers.smstrap', [
@@ -152,7 +210,7 @@ class SmsManagerTest extends TestCase
         // Purge cached drivers to pick up new config
         $this->app->make('sms')->purge();
 
-        Sms::driver('smstrap')->send('+15559876543', 'UAT test message');
+        $result = Sms::driver('smstrap')->send('+15559876543', 'UAT test message');
 
         Http::assertSent(function ($request) {
             return $request->url() === 'https://trap.test/messages'
@@ -163,13 +221,41 @@ class SmsManagerTest extends TestCase
                 && $request['project'] === 'my-project'
                 && isset($request['sent_at']);
         });
+
+        $this->assertInstanceOf(SmsResult::class, $result);
+        $this->assertTrue($result->successful());
+        $this->assertSame('trap_abc123', $result->messageId);
+        $this->assertSame('captured', $result->status);
+        $this->assertSame('+15559876543', $result->to);
+        $this->assertSame('+15550001111', $result->from);
+        $this->assertSame('UAT test message', $result->body);
+        $this->assertSame(['id' => 'trap_abc123'], $result->raw);
+    }
+
+    public function test_smstrap_generates_id_when_response_has_none(): void
+    {
+        Http::fake([
+            'trap.test/*' => Http::response([], 200),
+        ]);
+
+        $this->app['config']->set('sms.drivers.smstrap', [
+            'url'     => 'https://trap.test',
+            'api_key' => 'key',
+            'project' => 'proj',
+        ]);
+        $this->app->make('sms')->purge();
+
+        $result = Sms::driver('smstrap')->send('+15551234567', 'test');
+
+        $this->assertTrue($result->successful());
+        $this->assertStringStartsWith('smstrap_', $result->messageId);
     }
 
     // -------------------------------------------------------
     // Log Driver
     // -------------------------------------------------------
 
-    public function test_log_driver_writes_log_entry(): void
+    public function test_log_driver_writes_log_and_returns_result(): void
     {
         Log::shouldReceive('channel')
             ->with('stack')
@@ -188,7 +274,15 @@ class SmsManagerTest extends TestCase
             from: '+15550000000',
         );
 
-        $driver->send('+15551234567', 'Log test');
+        $result = $driver->send('+15551234567', 'Log test');
+
+        $this->assertInstanceOf(SmsResult::class, $result);
+        $this->assertTrue($result->successful());
+        $this->assertStringStartsWith('log_', $result->messageId);
+        $this->assertSame('logged', $result->status);
+        $this->assertSame('+15551234567', $result->to);
+        $this->assertSame('+15550000000', $result->from);
+        $this->assertSame('Log test', $result->body);
     }
 
     public function test_log_driver_respects_from_override(): void
@@ -209,22 +303,33 @@ class SmsManagerTest extends TestCase
             from: '+15550000000',
         );
 
-        $driver->send('+15551234567', 'Override test', ['from' => '+15559999999']);
+        $result = $driver->send('+15551234567', 'Override test', ['from' => '+15559999999']);
+
+        $this->assertSame('+15559999999', $result->from);
     }
 
     // -------------------------------------------------------
     // Twilio Driver (mocked)
     // -------------------------------------------------------
 
-    public function test_twilio_driver_calls_messages_create(): void
+    public function test_twilio_driver_calls_messages_create_and_returns_result(): void
     {
+        $twilioMessage = \Mockery::mock();
+        $twilioMessage->sid = 'SM_abc123';
+        $twilioMessage->status = 'queued';
+        $twilioMessage->numMedia = '0';
+        $twilioMessage->shouldReceive('toArray')
+            ->once()
+            ->andReturn(['sid' => 'SM_abc123', 'status' => 'queued']);
+
         $messagesMock = \Mockery::mock();
         $messagesMock->shouldReceive('create')
             ->once()
             ->with('+15551234567', \Mockery::on(function ($params) {
                 return $params['from'] === '+15550001111'
                     && $params['body'] === 'Twilio test';
-            }));
+            }))
+            ->andReturn($twilioMessage);
 
         $clientMock = \Mockery::mock(\Twilio\Rest\Client::class);
         $clientMock->messages = $messagesMock;
@@ -238,18 +343,37 @@ class SmsManagerTest extends TestCase
             ->once()
             ->andReturn($clientMock);
 
-        $driver->send('+15551234567', 'Twilio test');
+        $result = $driver->send('+15551234567', 'Twilio test');
+
+        $this->assertInstanceOf(SmsResult::class, $result);
+        $this->assertTrue($result->successful());
+        $this->assertSame('SM_abc123', $result->messageId);
+        $this->assertSame('queued', $result->status);
+        $this->assertSame('+15551234567', $result->to);
+        $this->assertSame('+15550001111', $result->from);
+        $this->assertSame('Twilio test', $result->body);
+        $this->assertSame(0, $result->mediaCount);
+        $this->assertSame(['sid' => 'SM_abc123', 'status' => 'queued'], $result->raw);
     }
 
     public function test_twilio_driver_passes_media_url(): void
     {
+        $twilioMessage = \Mockery::mock();
+        $twilioMessage->sid = 'SM_mms456';
+        $twilioMessage->status = 'queued';
+        $twilioMessage->numMedia = '1';
+        $twilioMessage->shouldReceive('toArray')
+            ->once()
+            ->andReturn(['sid' => 'SM_mms456']);
+
         $messagesMock = \Mockery::mock();
         $messagesMock->shouldReceive('create')
             ->once()
             ->with('+15551234567', \Mockery::on(function ($params) {
                 return isset($params['mediaUrl'])
                     && $params['mediaUrl'] === ['https://example.com/image.jpg'];
-            }));
+            }))
+            ->andReturn($twilioMessage);
 
         $clientMock = \Mockery::mock(\Twilio\Rest\Client::class);
         $clientMock->messages = $messagesMock;
@@ -263,23 +387,31 @@ class SmsManagerTest extends TestCase
             ->once()
             ->andReturn($clientMock);
 
-        $driver->send('+15551234567', 'MMS test', [
+        $result = $driver->send('+15551234567', 'MMS test', [
             'mediaUrl' => 'https://example.com/image.jpg',
         ]);
+
+        $this->assertSame(1, $result->mediaCount);
     }
 
     // -------------------------------------------------------
     // Fake SMS Provider
     // -------------------------------------------------------
 
-    public function test_fake_provider_captures_messages(): void
+    public function test_fake_provider_captures_messages_as_sms_results(): void
     {
         $fake = new FakeSmsProvider();
 
-        $fake->send('+15551111111', 'Hello');
-        $fake->send('+15552222222', 'World');
+        $result1 = $fake->send('+15551111111', 'Hello');
+        $result2 = $fake->send('+15552222222', 'World');
 
         $this->assertCount(2, $fake->getSent());
+        $this->assertInstanceOf(SmsResult::class, $result1);
+        $this->assertInstanceOf(SmsResult::class, $result2);
+        $this->assertTrue($result1->successful());
+        $this->assertStringStartsWith('fake_', $result1->messageId);
+        $this->assertSame('sent', $result1->status);
+        $this->assertContainsOnlyInstancesOf(SmsResult::class, $fake->getSent());
     }
 
     public function test_fake_assert_sent_to(): void
@@ -308,13 +440,13 @@ class SmsManagerTest extends TestCase
         $fake->assertSentCount(3);
     }
 
-    public function test_fake_assert_sent_to_with_body(): void
+    public function test_fake_assert_sent_to_with_body_receives_sms_result(): void
     {
         $fake = new FakeSmsProvider();
         $fake->send('+15551111111', 'Your code is 123456');
 
-        $fake->assertSentToWithBody('+15551111111', function (string $body) {
-            return str_contains($body, '123456');
+        $fake->assertSentToWithBody('+15551111111', function (SmsResult $result) {
+            return str_contains((string) $result->body, '123456');
         });
     }
 
@@ -328,8 +460,10 @@ class SmsManagerTest extends TestCase
 
         $this->assertInstanceOf(FakeSmsProvider::class, $fake);
 
-        Sms::send('+15551234567', 'Faked message');
+        $result = Sms::send('+15551234567', 'Faked message');
 
+        $this->assertInstanceOf(SmsResult::class, $result);
+        $this->assertTrue($result->successful());
         $fake->assertSentTo('+15551234567', 'Faked');
         $fake->assertSentCount(1);
     }
@@ -349,14 +483,15 @@ class SmsManagerTest extends TestCase
     // Manager send() proxies to default driver
     // -------------------------------------------------------
 
-    public function test_manager_send_proxies_to_default_driver(): void
+    public function test_manager_send_proxies_and_returns_result(): void
     {
         $fake = Sms::fake();
 
         /** @var SmsManager $manager */
         $manager = $this->app->make('sms');
-        $manager->send('+15551234567', 'Proxied');
+        $result = $manager->send('+15551234567', 'Proxied');
 
+        $this->assertInstanceOf(SmsResult::class, $result);
         $fake->assertSentTo('+15551234567', 'Proxied');
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneNaturalWay\Sms\Drivers;
 
 use OneNaturalWay\Sms\Contracts\SmsProvider;
+use OneNaturalWay\Sms\SmsResult;
 use RuntimeException;
 
 class TwilioSmsProvider implements SmsProvider
@@ -29,12 +30,14 @@ class TwilioSmsProvider implements SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters (e.g., 'from', 'mediaUrl').
      */
-    public function send(string $to, string $body, array $options = []): void
+    public function send(string $to, string $body, array $options = []): SmsResult
     {
         $client = $this->createClient();
 
+        $from = $options['from'] ?? $this->from;
+
         $params = [
-            'from' => $options['from'] ?? $this->from,
+            'from' => $from,
             'body' => $body,
         ];
 
@@ -42,7 +45,17 @@ class TwilioSmsProvider implements SmsProvider
             $params['mediaUrl'] = (array) $options['mediaUrl'];
         }
 
-        $client->messages->create($to, $params);
+        $message = $client->messages->create($to, $params);
+
+        return new SmsResult(
+            messageId: $message->sid,
+            status: $message->status,
+            to: $to,
+            from: $from,
+            body: $body,
+            mediaCount: (int) $message->numMedia,
+            raw: $message->toArray(),
+        );
     }
 
     /**

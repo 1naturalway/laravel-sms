@@ -7,11 +7,12 @@ namespace OneNaturalWay\Sms\Facades;
 use Illuminate\Support\Facades\Facade;
 use OneNaturalWay\Sms\Drivers\FakeSmsProvider;
 use OneNaturalWay\Sms\SmsManager;
+use OneNaturalWay\Sms\SmsResult;
 
 /**
- * @method static void send(string $to, string $body, array $options = [])
+ * @method static SmsResult send(string $to, string $body, array $options = [])
  * @method static \OneNaturalWay\Sms\Contracts\SmsProvider driver(?string $name = null)
- * @method static \OneNaturalWay\Sms\SmsManager extend(string $name, \Closure $creator)
+ * @method static SmsManager extend(string $name, \Closure $creator)
  * @method static FakeSmsProvider fake()
  *
  * @see \OneNaturalWay\Sms\SmsManager

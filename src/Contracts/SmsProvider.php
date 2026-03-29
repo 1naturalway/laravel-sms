@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OneNaturalWay\Sms\Contracts;
 
+use OneNaturalWay\Sms\SmsResult;
+
 interface SmsProvider
 {
     /**
@@ -13,5 +15,5 @@ interface SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters (e.g., 'from', 'mediaUrl').
      */
-    public function send(string $to, string $body, array $options = []): void;
+    public function send(string $to, string $body, array $options = []): SmsResult;
 }

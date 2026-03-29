@@ -145,9 +145,9 @@ class SmsManager implements SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters.
      */
-    public function send(string $to, string $body, array $options = []): void
+    public function send(string $to, string $body, array $options = []): SmsResult
     {
-        $this->driver()->send($to, $body, $options);
+        return $this->driver()->send($to, $body, $options);
     }
 
     /**

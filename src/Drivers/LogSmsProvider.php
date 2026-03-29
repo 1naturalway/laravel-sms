@@ -6,6 +6,7 @@ namespace OneNaturalWay\Sms\Drivers;
 
 use Illuminate\Support\Facades\Log;
 use OneNaturalWay\Sms\Contracts\SmsProvider;
+use OneNaturalWay\Sms\SmsResult;
 
 class LogSmsProvider implements SmsProvider
 {
@@ -21,7 +22,7 @@ class LogSmsProvider implements SmsProvider
      * @param  string  $body  The message body.
      * @param  array<string, mixed>  $options  Optional parameters (e.g., 'from').
      */
-    public function send(string $to, string $body, array $options = []): void
+    public function send(string $to, string $body, array $options = []): SmsResult
     {
         $from = $options['from'] ?? $this->from;
 
@@ -30,5 +31,13 @@ class LogSmsProvider implements SmsProvider
             'from' => $from,
             'body' => $body,
         ]);
+
+        return new SmsResult(
+            messageId: 'log_' . uniqid(),
+            status: 'logged',
+            to: $to,
+            from: $from,
+            body: $body,
+        );
     }
 }
