@@ -5,10 +5,10 @@
     "type": "library",
     "keywords": ["laravel", "sms", "twilio", "messaging"],
     "authors": [
-        {
-            "name": "1 Natural Way",
-            "email": "dev@1naturalway.com"
-        }
+      {
+        "name": "Andrew Donald Johnson",
+        "email": "ajohnson6494@gmail.com"
+      }
     ],
     "require": {
         "php": "^8.4",

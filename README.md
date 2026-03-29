@@ -1,6 +1,6 @@
 # Laravel SMS
 
-A driver-based SMS abstraction layer for Laravel, following the same architectural pattern as Laravel's built-in Mail system. Swap between Twilio, a UAT trap, logging, or a null driver with a single config change.
+A driver-based SMS abstraction layer for Laravel, following the same architectural pattern as Laravel's built-in Mail system. Swap between Twilio, logging, or a null driver with a single config change.
 
 ## Installation
 
