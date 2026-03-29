@@ -19,7 +19,8 @@
     },
     "require-dev": {
         "orchestra/testbench": "^10.0",
-        "phpunit/phpunit": "^11.0"
+        "phpunit/phpunit": "^11.0",
+        "twilio/sdk": "^8.11"
     },
     "suggest": {
         "twilio/sdk": "Required to use the Twilio SMS driver (^8.0)."

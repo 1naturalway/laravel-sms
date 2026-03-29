@@ -6,6 +6,7 @@ namespace OneNaturalWay\Sms\Drivers;
 
 use Illuminate\Support\Str;
 use OneNaturalWay\Sms\Contracts\SmsProvider;
+use OneNaturalWay\Sms\Exceptions\SmsException;
 use OneNaturalWay\Sms\SmsResult;
 use RuntimeException;
 
@@ -36,22 +37,53 @@ class TwilioSmsProvider implements SmsProvider {
     $from = $options['from'] ?? $this->from;
 
     $params = [
-          'from' => $from,
-          'body' => $body,
-      ];
+      'from' => $from,
+      'body' => $body,
+    ];
 
     if (isset($options['mediaUrl'])) {
       $params['mediaUrl'] = (array) $options['mediaUrl'];
     }
 
-    $message = $client->messages->create($to, $params);
+    try {
+      $message = $client->messages->create($to, $params);
 
-    $mediaUrls = [];
-    if ((int) $message->numMedia > 0) {
-      $mediaResponse = $client->messages($message->sid)->media->read();
-      foreach ($mediaResponse as $media) {
-        $mediaUrls[] = "https://api.twilio.com" . Str::replaceLast(".json", "", $media->uri);
+      $mediaUrls = [];
+      if ((int) $message->numMedia > 0) {
+        $mediaResponse = $client->messages($message->sid)->media->read();
+        foreach ($mediaResponse as $media) {
+          $mediaUrls[] = "https://api.twilio.com" . Str::replaceLast(".json", "", $media->uri);
+        }
       }
+    } catch (\Twilio\Exceptions\RestException $e) {
+      if (Str::contains($e->getMessage(), 'blacklist rule')) {
+        throw new SmsException(
+            message: $e->getMessage(),
+            errorType: 'blacklisted',
+            phoneNumber: $to,
+            providerCode: (string) $e->getCode(),
+            previous: $e,
+        );
+      }
+
+      if (Str::contains($e->getMessage(), 'not a valid phone number')) {
+        throw new SmsException(
+            message: $e->getMessage(),
+            errorType: 'invalid_number',
+            phoneNumber: $to,
+            providerCode: (string) $e->getCode(),
+            previous: $e,
+        );
+      }
+
+    // Anything unexpected — still wrap it
+      throw new SmsException(
+          message: $e->getMessage(),
+          errorType: 'provider_error',
+          phoneNumber: $to,
+          providerCode: (string) $e->getCode(),
+          previous: $e,
+      );
     }
 
     return new SmsResult(

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use OneNaturalWay\Sms\Contracts\SmsProvider;
 use OneNaturalWay\Sms\Drivers\FakeSmsProvider;
+use OneNaturalWay\Sms\Exceptions\SmsException;
 use OneNaturalWay\Sms\Drivers\LogSmsProvider;
 use OneNaturalWay\Sms\Drivers\NullSmsProvider;
 use OneNaturalWay\Sms\Drivers\SmsTrapProvider;
@@ -469,6 +470,153 @@ class SmsManagerTest extends TestCase
         $this->assertSame(0, $result->mediaCount);
         $this->assertFalse($result->hasMedia());
         $this->assertSame([], $result->mediaUrls);
+    }
+
+    // -------------------------------------------------------
+    // SmsException
+    // -------------------------------------------------------
+
+    public function test_sms_exception_properties(): void
+    {
+        $previous = new \Exception('original');
+        $exception = new SmsException(
+            message: 'The number is blacklisted',
+            errorType: 'blacklisted',
+            phoneNumber: '+15551234567',
+            providerCode: '21610',
+            previous: $previous,
+        );
+
+        $this->assertSame('The number is blacklisted', $exception->getMessage());
+        $this->assertSame('blacklisted', $exception->errorType);
+        $this->assertSame('+15551234567', $exception->phoneNumber);
+        $this->assertSame('21610', $exception->providerCode);
+        $this->assertSame($previous, $exception->getPrevious());
+    }
+
+    public function test_sms_exception_is_blacklisted(): void
+    {
+        $exception = new SmsException(message: 'blocked', errorType: 'blacklisted');
+
+        $this->assertTrue($exception->isBlacklisted());
+        $this->assertFalse($exception->isInvalidNumber());
+    }
+
+    public function test_sms_exception_is_invalid_number(): void
+    {
+        $exception = new SmsException(message: 'bad number', errorType: 'invalid_number');
+
+        $this->assertFalse($exception->isBlacklisted());
+        $this->assertTrue($exception->isInvalidNumber());
+    }
+
+    public function test_sms_exception_provider_error(): void
+    {
+        $exception = new SmsException(message: 'something broke', errorType: 'provider_error');
+
+        $this->assertFalse($exception->isBlacklisted());
+        $this->assertFalse($exception->isInvalidNumber());
+        $this->assertSame('provider_error', $exception->errorType);
+    }
+
+    public function test_sms_exception_extends_runtime_exception(): void
+    {
+        $exception = new SmsException(message: 'test', errorType: 'provider_error');
+
+        $this->assertInstanceOf(\RuntimeException::class, $exception);
+    }
+
+    // -------------------------------------------------------
+    // Twilio Error Handling
+    // -------------------------------------------------------
+
+    public function test_twilio_throws_sms_exception_for_blacklisted_number(): void
+    {
+        $restException = new \Twilio\Exceptions\RestException(
+            'The message From/To pair violates a blacklist rule', 21610, 403
+        );
+
+        $messagesMock = \Mockery::mock();
+        $messagesMock->shouldReceive('create')->andThrow($restException);
+
+        $clientMock = \Mockery::mock(\Twilio\Rest\Client::class);
+        $clientMock->messages = $messagesMock;
+
+        $driver = \Mockery::mock(
+            \OneNaturalWay\Sms\Drivers\TwilioSmsProvider::class,
+            ['sid', 'token', '+15550001111']
+        )->makePartial()->shouldAllowMockingProtectedMethods();
+        $driver->shouldReceive('createClient')->andReturn($clientMock);
+
+        try {
+            $driver->send('+15551234567', 'Hello');
+            $this->fail('Expected SmsException was not thrown');
+        } catch (SmsException $e) {
+            $this->assertTrue($e->isBlacklisted());
+            $this->assertFalse($e->isInvalidNumber());
+            $this->assertSame('+15551234567', $e->phoneNumber);
+            $this->assertSame('21610', $e->providerCode);
+            $this->assertSame($restException, $e->getPrevious());
+        }
+    }
+
+    public function test_twilio_throws_sms_exception_for_invalid_number(): void
+    {
+        $restException = new \Twilio\Exceptions\RestException(
+            'The "To" number +1555bad is not a valid phone number', 21211, 400
+        );
+
+        $messagesMock = \Mockery::mock();
+        $messagesMock->shouldReceive('create')->andThrow($restException);
+
+        $clientMock = \Mockery::mock(\Twilio\Rest\Client::class);
+        $clientMock->messages = $messagesMock;
+
+        $driver = \Mockery::mock(
+            \OneNaturalWay\Sms\Drivers\TwilioSmsProvider::class,
+            ['sid', 'token', '+15550001111']
+        )->makePartial()->shouldAllowMockingProtectedMethods();
+        $driver->shouldReceive('createClient')->andReturn($clientMock);
+
+        try {
+            $driver->send('+1555bad', 'Hello');
+            $this->fail('Expected SmsException was not thrown');
+        } catch (SmsException $e) {
+            $this->assertTrue($e->isInvalidNumber());
+            $this->assertFalse($e->isBlacklisted());
+            $this->assertSame('+1555bad', $e->phoneNumber);
+            $this->assertSame('21211', $e->providerCode);
+        }
+    }
+
+    public function test_twilio_throws_sms_exception_for_generic_rest_error(): void
+    {
+        $restException = new \Twilio\Exceptions\RestException(
+            'Account suspended', 20003, 403
+        );
+
+        $messagesMock = \Mockery::mock();
+        $messagesMock->shouldReceive('create')->andThrow($restException);
+
+        $clientMock = \Mockery::mock(\Twilio\Rest\Client::class);
+        $clientMock->messages = $messagesMock;
+
+        $driver = \Mockery::mock(
+            \OneNaturalWay\Sms\Drivers\TwilioSmsProvider::class,
+            ['sid', 'token', '+15550001111']
+        )->makePartial()->shouldAllowMockingProtectedMethods();
+        $driver->shouldReceive('createClient')->andReturn($clientMock);
+
+        try {
+            $driver->send('+15551234567', 'Hello');
+            $this->fail('Expected SmsException was not thrown');
+        } catch (SmsException $e) {
+            $this->assertSame('provider_error', $e->errorType);
+            $this->assertFalse($e->isBlacklisted());
+            $this->assertFalse($e->isInvalidNumber());
+            $this->assertSame('20003', $e->providerCode);
+            $this->assertSame('+15551234567', $e->phoneNumber);
+        }
     }
 
     // -------------------------------------------------------

@@ -100,6 +100,34 @@ Every `send()` call returns an `SmsResult` DTO with these properties:
 
 Use `$result->successful()` to check if the message was accepted — returns `true` when `messageId` is present. Use `$result->hasMedia()` to check if media was attached. The null driver always returns an unsuccessful result since nothing was sent.
 
+### Error Handling
+
+The Twilio driver wraps API errors into typed `SmsException` instances so you can handle specific failure modes:
+
+```php
+use OneNaturalWay\Sms\Exceptions\SmsException;
+
+try {
+    $result = Sms::send('+15551234567', 'Hello!');
+} catch (SmsException $e) {
+    if ($e->isBlacklisted()) {
+        // Number opted out / on a blacklist — stop sending to this number
+    }
+
+    if ($e->isInvalidNumber()) {
+        // Bad phone number format — flag for correction
+    }
+
+    // All SmsExceptions carry context:
+    // $e->errorType     — 'blacklisted', 'invalid_number', or 'provider_error'
+    // $e->phoneNumber   — the "to" number that failed
+    // $e->providerCode  — the raw error code from Twilio (e.g., '21610')
+    // $e->getPrevious() — the original Twilio RestException
+}
+```
+
+`SmsException` extends `RuntimeException`, so uncaught errors will still surface normally in your exception handler.
+
 ### With Options
 
 ```php
