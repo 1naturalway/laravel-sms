@@ -81,6 +81,7 @@ $result = Sms::send('+15559876543', 'Your verification code is 123456');
 if ($result->successful()) {
     // Store $result->messageId for tracking
     // Check $result->status
+    // For MMS: $result->hasMedia(), $result->mediaUrls
 }
 ```
 
@@ -94,9 +95,10 @@ Every `send()` call returns an `SmsResult` DTO with these properties:
 | `from` | `?string` | Sender number |
 | `body` | `?string` | Message body |
 | `mediaCount` | `?int` | Number of media attachments (Twilio) |
+| `mediaUrls` | `array` | URLs of attached media (Twilio MMS) |
 | `raw` | `array` | Full raw response from the provider |
 
-Use `$result->successful()` to check if the message was accepted — returns `true` when `messageId` is present. The null driver always returns an unsuccessful result since nothing was sent.
+Use `$result->successful()` to check if the message was accepted — returns `true` when `messageId` is present. Use `$result->hasMedia()` to check if media was attached. The null driver always returns an unsuccessful result since nothing was sent.
 
 ### With Options
 

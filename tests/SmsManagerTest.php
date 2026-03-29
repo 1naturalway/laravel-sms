@@ -43,6 +43,7 @@ class SmsManagerTest extends TestCase
             from: '+15550001111',
             body: 'Hello',
             mediaCount: 1,
+            mediaUrls: ['https://api.twilio.com/media/123'],
             raw: ['sid' => 'msg_123'],
         );
 
@@ -52,6 +53,7 @@ class SmsManagerTest extends TestCase
         $this->assertSame('+15550001111', $result->from);
         $this->assertSame('Hello', $result->body);
         $this->assertSame(1, $result->mediaCount);
+        $this->assertSame(['https://api.twilio.com/media/123'], $result->mediaUrls);
         $this->assertSame(['sid' => 'msg_123'], $result->raw);
     }
 
@@ -65,6 +67,7 @@ class SmsManagerTest extends TestCase
         $this->assertNull($result->from);
         $this->assertNull($result->body);
         $this->assertNull($result->mediaCount);
+        $this->assertSame([], $result->mediaUrls);
         $this->assertSame([], $result->raw);
     }
 
@@ -80,6 +83,27 @@ class SmsManagerTest extends TestCase
         $result = new SmsResult();
 
         $this->assertFalse($result->successful());
+    }
+
+    public function test_sms_result_has_media_with_count(): void
+    {
+        $result = new SmsResult(mediaCount: 2, mediaUrls: ['https://example.com/a', 'https://example.com/b']);
+
+        $this->assertTrue($result->hasMedia());
+    }
+
+    public function test_sms_result_has_media_without_count(): void
+    {
+        $result = new SmsResult();
+
+        $this->assertFalse($result->hasMedia());
+    }
+
+    public function test_sms_result_has_media_with_zero_count(): void
+    {
+        $result = new SmsResult(mediaCount: 0);
+
+        $this->assertFalse($result->hasMedia());
     }
 
     // -------------------------------------------------------
@@ -356,7 +380,7 @@ class SmsManagerTest extends TestCase
         $this->assertSame(['sid' => 'SM_abc123', 'status' => 'queued'], $result->raw);
     }
 
-    public function test_twilio_driver_passes_media_url(): void
+    public function test_twilio_driver_passes_media_url_and_fetches_media_urls(): void
     {
         $twilioMessage = \Mockery::mock();
         $twilioMessage->sid = 'SM_mms456';
@@ -365,6 +389,15 @@ class SmsManagerTest extends TestCase
         $twilioMessage->shouldReceive('toArray')
             ->once()
             ->andReturn(['sid' => 'SM_mms456']);
+
+        $mediaItem = \Mockery::mock();
+        $mediaItem->uri = '/2010-04-01/Accounts/AC123/Messages/SM_mms456/Media/ME123.json';
+
+        $messageContextMock = \Mockery::mock();
+        $messageContextMock->media = \Mockery::mock();
+        $messageContextMock->media->shouldReceive('read')
+            ->once()
+            ->andReturn([$mediaItem]);
 
         $messagesMock = \Mockery::mock();
         $messagesMock->shouldReceive('create')
@@ -377,6 +410,10 @@ class SmsManagerTest extends TestCase
 
         $clientMock = \Mockery::mock(\Twilio\Rest\Client::class);
         $clientMock->messages = $messagesMock;
+        $clientMock->shouldReceive('messages')
+            ->with('SM_mms456')
+            ->once()
+            ->andReturn($messageContextMock);
 
         $driver = \Mockery::mock(
             \OneNaturalWay\Sms\Drivers\TwilioSmsProvider::class,
@@ -392,6 +429,46 @@ class SmsManagerTest extends TestCase
         ]);
 
         $this->assertSame(1, $result->mediaCount);
+        $this->assertTrue($result->hasMedia());
+        $this->assertCount(1, $result->mediaUrls);
+        $this->assertSame(
+            'https://api.twilio.com/2010-04-01/Accounts/AC123/Messages/SM_mms456/Media/ME123',
+            $result->mediaUrls[0]
+        );
+    }
+
+    public function test_twilio_driver_sms_without_media_has_empty_media_urls(): void
+    {
+        $twilioMessage = \Mockery::mock();
+        $twilioMessage->sid = 'SM_sms789';
+        $twilioMessage->status = 'queued';
+        $twilioMessage->numMedia = '0';
+        $twilioMessage->shouldReceive('toArray')
+            ->once()
+            ->andReturn(['sid' => 'SM_sms789']);
+
+        $messagesMock = \Mockery::mock();
+        $messagesMock->shouldReceive('create')
+            ->once()
+            ->andReturn($twilioMessage);
+
+        $clientMock = \Mockery::mock(\Twilio\Rest\Client::class);
+        $clientMock->messages = $messagesMock;
+
+        $driver = \Mockery::mock(
+            \OneNaturalWay\Sms\Drivers\TwilioSmsProvider::class,
+            ['sid', 'token', '+15550001111']
+        )->makePartial()->shouldAllowMockingProtectedMethods();
+
+        $driver->shouldReceive('createClient')
+            ->once()
+            ->andReturn($clientMock);
+
+        $result = $driver->send('+15551234567', 'Plain SMS');
+
+        $this->assertSame(0, $result->mediaCount);
+        $this->assertFalse($result->hasMedia());
+        $this->assertSame([], $result->mediaUrls);
     }
 
     // -------------------------------------------------------
